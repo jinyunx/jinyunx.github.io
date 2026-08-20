@@ -1,0 +1,60 @@
+# 构建并部署到 GitHub Pages
+# 用 Cloudflare Pages 部署的话这个文件可以删（CF 在平台侧配置构建命令，不需要 Action）
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches:
+      - main
+  # 支持在 Actions 页面手动触发
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# 同一时间只跑一个部署，避免并发推送互相覆盖
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # 主题是 git submodule，不加这行会拉不到主题导致构建失败
+          submodules: recursive
+          # 取完整历史，Hugo 才能拿到每篇文章的 git 最后修改时间
+          fetch-depth: 0
+
+      - name: Setup Hugo
+        uses: peaceiris/actions-hugo@v3
+        with:
+          # 与本地版本保持一致，避免"本地正常线上挂"
+          hugo-version: "0.165.0"
+          # Stack 主题需要编译 SCSS，必须用 extended 版
+          extended: true
+
+      - uses: actions/configure-pages@v5
+        id: pages
+
+      - name: Build
+        # baseURL 由 Pages 实际地址覆盖，配置文件里的占位值不影响线上
+        run: hugo --minify --baseURL "${{ steps.pages.outputs.base_url }}/"
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./public
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

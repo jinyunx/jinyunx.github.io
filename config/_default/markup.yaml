@@ -1,0 +1,23 @@
+# ============================================================
+# Markdown 渲染配置
+# ============================================================
+
+goldmark:
+  renderer:
+    # 允许 Markdown 里直接写 HTML（嵌 B 站/YouTube 视频、微博卡片等需要）
+    unsafe: true
+
+tableOfContents:
+  startLevel: 2
+  endLevel: 4
+  ordered: false
+
+highlight:
+  # 用 CSS class 而非内联样式，才能跟随主题深浅色切换
+  noClasses: false
+  codeFences: true
+  guessSyntax: true
+  # 生活记录里贴代码通常是短片段，不显示行号更清爽；
+  # 需要时在代码块上标注 {linenos=true} 单独开启
+  lineNos: false
+  tabWidth: 4

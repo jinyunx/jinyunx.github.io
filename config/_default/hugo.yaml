@@ -1,0 +1,45 @@
+# ============================================================
+# 站点主配置
+# 部署前必须改：baseURL、title
+# ============================================================
+
+# 站点根地址，结尾必须带 /
+# 仓库名为 <用户名>.github.io 时站点落在根路径，无需子路径前缀
+# 日后绑定自己的域名，把这里改成 https://your-domain.com/ 即可
+baseURL: "https://jinyunx.github.io/"
+
+title: "onexie 的生活记录"
+
+# 中文站点必须配置的三项：
+# locale 影响 RSS/HTML lang 属性（Hugo 0.158 起取代了旧的 languageCode）
+locale: zh-cn
+# defaultContentLanguage 决定主题界面文案语言，取值必须是主题 i18n/ 下存在的文件名
+# 主题提供 zh.toml，所以这里是 zh（不是 zh-cn，写错会回退成英文界面）
+defaultContentLanguage: zh
+# 中文没有空格分词，开启后 .Summary 摘要截断和 .WordCount 字数统计才准确
+hasCJKLanguage: true
+
+# 主题目录名（themes/ 下的文件夹名，通过 git submodule 引入）
+theme: hugo-theme-stack
+
+# 生成 robots.txt，利于搜索引擎收录
+enableRobotsTXT: true
+
+# 首页每页文章数
+pagination:
+  pagerSize: 10
+
+# URL 结构
+# post 用 /p/<slug>/ 短链，日后想改标题也不会导致链接失效
+permalinks:
+  post: "/p/:slug/"
+  page: "/:slug/"
+
+# 首页输出 HTML + RSS，方便别人订阅
+# 站内搜索的 JSON 索引不在这里配置：它由 content/page/search/index.md
+# 自己声明 outputs 后经主题的 page/search.json 模板产出到 /search/index.json，
+# 在 home 里加 JSON 会因为没有对应模板而报 warning
+outputs:
+  home:
+    - HTML
+    - RSS

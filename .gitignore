@@ -1,0 +1,19 @@
+# Hugo 构建产物
+/public/
+/resources/_gen/
+.hugo_build.lock
+
+# Hugo 本地缓存
+/.hugo/
+
+# macOS
+.DS_Store
+._*
+
+# 编辑器
+.idea/
+.vscode/
+*.swp
+
+# 常见误提交：手机导出的原图临时目录
+/tmp/

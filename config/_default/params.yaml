@@ -1,0 +1,108 @@
+# ============================================================
+# 主题参数（Stack）
+# 完整可选项见 themes/hugo-theme-stack/config/_default/params.toml
+# ============================================================
+
+# 首页列表只展示 content/post/ 下的内容，
+# 「关于」「归档」这类固定页（content/page/）不会混进文章流
+mainSections:
+  - post
+
+# RSS 输出全文，订阅者不用点进来
+rssFullContent: true
+
+# 站点图标，放到 assets/img/favicon.png 后取消注释
+# favicon: "img/favicon.png"
+
+sidebar:
+  # 没有头像图时显示的 emoji 占位
+  emoji: "🌿"
+  subtitle: "记录生活里那些值得回头看的瞬间"
+  # 头像：把图片放到 assets/img/avatar.png 后取消下面这行
+  # 路径相对 assets/ 目录，Hugo 会自动做多尺寸压缩
+  # avatar: "img/avatar.png"
+
+article:
+  # 正文标题加锚点链接，方便分享到具体段落
+  headingAnchor: true
+  # 生活记录篇幅短，正文目录默认关掉；某篇很长时在该篇 front matter 里写 toc: true 单独开
+  toc: false
+  # 阅读时长（中文按 hasCJKLanguage 正确估算）
+  readingTime: true
+  math: false
+
+  list:
+    # 首页卡片上显示标签
+    showTags: true
+
+  license:
+    # 生活记录多为个人内容，默认声明保留权利
+    enabled: true
+    default: "本文内容为个人生活记录，未经许可请勿转载"
+
+# 侧边栏 / 页面小组件
+widgets:
+  homepage:
+    - type: search
+    - type: archives
+      params:
+        limit: 5
+    - type: categories
+      params:
+        limit: 10
+    - type: tag-cloud
+      params:
+        limit: 20
+  page:
+    - type: toc
+
+# 日期显示格式，用 Go 时间格式（参考时间 2026-01-02 15:04:05）
+dateFormat:
+  published: "2026-01-02"
+  lastUpdated: "2026-01-02"
+
+# 浅色/深色模式
+colorScheme:
+  # 显示右上角切换按钮，访客仍可手动切回浅色（选择会记在浏览器 localStorage）
+  toggle: true
+  # 默认深色。可选值：auto（跟随系统）/ light / dark
+  default: dark
+
+# 图片处理：手机直出照片通常 3~5MB，Hugo 会自动生成多尺寸响应式图片
+imageProcessing:
+  # 按 EXIF 信息自动旋转，避免手机竖拍照片在网页里躺倒
+  autoOrient: true
+  content:
+    enabled: true
+    widths: [800, 1600, 2400]
+  thumbnail:
+    enabled: true
+
+# ------------------------------------------------------------
+# 评论：默认关闭。想开的话推荐 giscus（基于 GitHub Discussions，免费无广告）
+# 步骤：
+#   1. 打开 https://giscus.app ，按提示给博客仓库开启 Discussions 并安装 giscus App
+#   2. 页面下方会生成 repo / repoID / category / categoryID 四个值，填到下面
+#   3. 把 enabled 改成 true
+# ------------------------------------------------------------
+comments:
+  enabled: false
+  provider: giscus
+  giscus:
+    repo: ""
+    repoID: ""
+    category: "Announcements"
+    categoryID: ""
+    # 用文章标题关联评论区。若日后可能改标题，建议换成 pathname
+    mapping: "title"
+    lightTheme: "light"
+    darkTheme: "dark_dimmed"
+    reactionsEnabled: 1
+    inputPosition: "top"
+    lang: "zh-CN"
+    loading: "lazy"
+
+footer:
+  # 页脚版权起始年份
+  since: 2026
+  customText: ""
