@@ -1,5 +1,8 @@
 ---
 title: "{{ replace .File.ContentBaseName `-` ` ` | title }}"
+# URL 短名，最终地址是 /p/<slug>/
+# 建议填英文小写+连字符，方便分享；留空则用文件夹名
+slug: "{{ .File.ContentBaseName }}"
 # 副标题/摘要，显示在首页卡片上。留空则自动截取正文开头
 description: ""
 date: {{ .Date }}

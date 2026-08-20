@@ -30,10 +30,12 @@ pagination:
   pagerSize: 10
 
 # URL 结构
-# post 用 /p/<slug>/ 短链，日后想改标题也不会导致链接失效
+# 用 :slugorfilename 而非 :slug —— 两者都优先取 front matter 的 slug，
+# 但缺省时前者回退到文件夹名（英文，可读），后者回退到标题（中文，
+# 实际访问会变成 %E5%BC%80%E5%A7%8B 这类 percent-encoding 长串，难分享）
 permalinks:
-  post: "/p/:slug/"
-  page: "/:slug/"
+  post: "/p/:slugorfilename/"
+  page: "/:slugorfilename/"
 
 # 首页输出 HTML + RSS，方便别人订阅
 # 站内搜索的 JSON 索引不在这里配置：它由 content/page/search/index.md

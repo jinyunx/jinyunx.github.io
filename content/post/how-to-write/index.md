@@ -1,5 +1,6 @@
 ---
 title: "写作速查：这个博客怎么用"
+slug: "how-to-write"
 description: "发新文章、放照片、排版的全部常用写法，看完这篇就够了"
 date: 2026-08-16
 categories:

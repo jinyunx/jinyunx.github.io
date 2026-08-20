@@ -1,5 +1,6 @@
 ---
 title: "关于"
+slug: "about"
 description: "关于这个博客和我"
 date: 2026-08-17
 menu:

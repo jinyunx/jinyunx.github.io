@@ -1,5 +1,6 @@
 ---
 title: "开始记录"
+slug: "hello-world"
 description: "第一篇，写给以后的自己"
 date: 2026-08-17
 categories:
