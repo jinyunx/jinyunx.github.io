@@ -8,7 +8,7 @@
 # 日后绑定自己的域名，把这里改成 https://your-domain.com/ 即可
 baseURL: "https://jinyunx.github.io/"
 
-title: "onexie 的生活记录"
+title: "魔鬼小黑屋"
 
 # 中文站点必须配置的三项：
 # locale 影响 RSS/HTML lang 属性（Hugo 0.158 起取代了旧的 languageCode）

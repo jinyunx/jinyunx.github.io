@@ -72,6 +72,10 @@ blog/
 
 ## 可选增强
 
+- **背景音乐**：把 mp3 放进 `assets/music/`，再把 `params.yaml` 里 `music.enable`
+  改成 `true`、`music.file` 改成实际文件名即可。右下角会出现悬浮播放按钮。
+  注意浏览器禁止自动播放有声音频（Chrome/Safari 的 Autoplay Policy），
+  只能点击触发，这是平台限制无法绕过。细节见 `assets/music/README.txt`。
 - **绑自己的域名**：Cloudflare Registrar 按成本价售卖（`.com` 约 70 元/年，无续费溢价）。
   GitHub Pages 需在 `static/CNAME` 里写域名；Cloudflare Pages 在控制台加 Custom domain 即可。
 - **评论**：推荐 [giscus](https://giscus.app)（基于 GitHub Discussions，免费无广告），

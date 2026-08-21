@@ -1,0 +1,197 @@
+{{/*
+    背景音乐播放器（覆盖主题的 _partials/footer/custom.html 预留扩展点）
+
+    设计约束与取舍：
+    1. 不做自动播放 —— Chrome/Safari 的 Autoplay Policy 会拦截未经用户手势触发的
+       有声播放，写 autoplay 属性也只会被静默 reject，故只能点击触发。
+    2. 播放状态（含播放进度）存 sessionStorage：站内翻页时音乐能接着放，
+       关掉标签页即重置，不会让访客下次打开时莫名出声。
+    3. 音频文件走 .Site.Params.music.file，未配置时整段不输出，
+       不会产生 404 请求。
+*/}}
+
+{{- with .Site.Params.music -}}
+{{- if .enable -}}
+{{- $src := "" -}}
+{{- if .file -}}
+    {{/* 优先找 assets/ 下的文件，可享受 Hugo 指纹化缓存 */}}
+    {{- with resources.Get .file -}}
+        {{- $src = .RelPermalink -}}
+    {{- else -}}
+        {{/* 退回 static/ 目录下的路径 */}}
+        {{- $src = .file | relURL -}}
+    {{- end -}}
+{{- else if .url -}}
+    {{- $src = .url -}}
+{{- end -}}
+
+{{- if $src -}}
+<div class="bgm-player" id="bgm-player">
+    <audio id="bgm-audio" loop preload="none" src="{{ $src }}"></audio>
+    <button type="button" id="bgm-toggle" class="bgm-btn"
+            aria-label="播放背景音乐" title="{{ default "背景音乐" .title }}">
+        <span class="bgm-icon bgm-icon--play" aria-hidden="true">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="6" cy="17" r="3"></circle>
+                <circle cx="16" cy="17" r="3"></circle>
+                <path d="M9 17V4h10v13"></path>
+                <path d="M9 8h10"></path>
+            </svg>
+        </span>
+        <span class="bgm-icon bgm-icon--pause" aria-hidden="true">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="6" y="5" width="4" height="14" rx="1"></rect>
+                <rect x="14" y="5" width="4" height="14" rx="1"></rect>
+            </svg>
+        </span>
+    </button>
+</div>
+
+<style>
+    .bgm-player {
+        position: fixed;
+        right: 1.25rem;
+        bottom: 1.25rem;
+        z-index: 90; /* 低于主题弹层，避免遮挡 */
+    }
+
+    .bgm-btn {
+        width: 2.75rem;
+        height: 2.75rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
+        border: none;
+        border-radius: 50%;
+        cursor: pointer;
+        background: var(--card-background, #2f3934);
+        color: var(--card-text-color-main, #fff);
+        box-shadow: var(--shadow-l2, 0 2px 8px rgba(0, 0, 0, .3));
+        transition: transform .2s ease, opacity .2s ease;
+        /* 未播放时略微收敛，不抢正文注意力 */
+        opacity: .65;
+    }
+
+    .bgm-btn:hover {
+        opacity: 1;
+        transform: scale(1.06);
+    }
+
+    .bgm-player.is-playing .bgm-btn {
+        opacity: 1;
+    }
+
+    .bgm-icon svg {
+        width: 1.15rem;
+        height: 1.15rem;
+        display: block;
+    }
+
+    /* 播放/暂停图标互斥显示 */
+    .bgm-icon--pause,
+    .bgm-player.is-playing .bgm-icon--play {
+        display: none;
+    }
+
+    .bgm-player.is-playing .bgm-icon--pause {
+        display: block;
+    }
+
+    /* 播放时给个缓慢呼吸感，暗示正在出声 */
+    .bgm-player.is-playing .bgm-btn {
+        animation: bgm-breathe 3.2s ease-in-out infinite;
+    }
+
+    @keyframes bgm-breathe {
+        0%, 100% { box-shadow: var(--shadow-l2, 0 2px 8px rgba(0, 0, 0, .3)); }
+        50%      { box-shadow: 0 2px 18px rgba(255, 255, 255, .28); }
+    }
+
+    /* 尊重系统「减少动态效果」设置 */
+    @media (prefers-reduced-motion: reduce) {
+        .bgm-player.is-playing .bgm-btn { animation: none; }
+        .bgm-btn { transition: none; }
+    }
+
+    /* 手机上缩小并上移，避开底部手势条 */
+    @media (max-width: 768px) {
+        .bgm-player {
+            right: .9rem;
+            bottom: 1.6rem;
+        }
+        .bgm-btn {
+            width: 2.5rem;
+            height: 2.5rem;
+        }
+    }
+</style>
+
+<script>
+    (function () {
+        var wrap = document.getElementById('bgm-player');
+        var audio = document.getElementById('bgm-audio');
+        var btn = document.getElementById('bgm-toggle');
+        if (!wrap || !audio || !btn) return;
+
+        // 音量默认放低，背景音乐不该压过阅读；取值范围 0~1
+        audio.volume = {{ default 0.35 .volume }};
+
+        var KEY_ON = 'bgmPlaying';
+        var KEY_POS = 'bgmPosition';
+
+        function markPlaying(on) {
+            wrap.classList.toggle('is-playing', on);
+            btn.setAttribute('aria-label', on ? '暂停背景音乐' : '播放背景音乐');
+        }
+
+        // 站内翻页续播：仅当本次会话中用户已明确点过播放
+        if (sessionStorage.getItem(KEY_ON) === '1') {
+            var pos = parseFloat(sessionStorage.getItem(KEY_POS) || '0');
+            if (pos > 0) {
+                // preload="none" 时 currentTime 需等元数据就绪才能设置
+                audio.addEventListener('loadedmetadata', function () {
+                    if (pos < audio.duration) audio.currentTime = pos;
+                }, { once: true });
+            }
+            audio.play().then(function () {
+                markPlaying(true);
+            }).catch(function () {
+                // 浏览器仍可能拒绝（如整个标签页从未有过手势），
+                // 此时保持暂停态等用户点击，不报错干扰访客
+                sessionStorage.removeItem(KEY_ON);
+            });
+        }
+
+        btn.addEventListener('click', function () {
+            if (audio.paused) {
+                audio.play().then(function () {
+                    markPlaying(true);
+                    sessionStorage.setItem(KEY_ON, '1');
+                }).catch(function (err) {
+                    console.warn('[bgm] 播放失败：', err);
+                });
+            } else {
+                audio.pause();
+                markPlaying(false);
+                sessionStorage.removeItem(KEY_ON);
+            }
+        });
+
+        // 记录进度，供翻页后续播
+        audio.addEventListener('timeupdate', function () {
+            if (!audio.paused) sessionStorage.setItem(KEY_POS, audio.currentTime);
+        });
+
+        // 音频加载失败时隐藏按钮，避免留一个点了没反应的死按钮
+        audio.addEventListener('error', function () {
+            console.warn('[bgm] 音频加载失败，检查 params.yaml 的 music.file 路径');
+            wrap.style.display = 'none';
+        });
+    })();
+</script>
+{{- end -}}
+{{- end -}}
+{{- end -}}

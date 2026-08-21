@@ -106,3 +106,29 @@ footer:
   # 页脚版权起始年份
   since: 2026
   customText: ""
+
+# ------------------------------------------------------------
+# 背景音乐（右下角悬浮按钮，实现见 layouts/_partials/footer/custom.html）
+#
+# 为什么没有自动播放：
+#   Chrome / Safari 的 Autoplay Policy 禁止未经用户手势触发的有声播放，
+#   写 autoplay 属性会被浏览器静默拒绝，无法绕过。所以只能点击播放。
+#
+# 放音频文件：
+#   1. 把 mp3 放到 assets/music/ 目录（如 assets/music/bgm.mp3）
+#   2. file 填相对 assets/ 的路径，即 "music/bgm.mp3"
+#   3. enable 改成 true
+#
+# 也可以用外链：把 file 留空，改填 url: "https://example.com/xxx.mp3"
+# （外链需对方允许跨域访问，否则加载失败按钮会自动隐藏）
+# ------------------------------------------------------------
+music:
+  enable: false
+  # 相对 assets/ 目录的路径
+  file: "music/bgm.mp3"
+  # 外链地址（file 找不到文件时才用这个）
+  url: ""
+  # 鼠标悬停提示文字，建议写曲名
+  title: "背景音乐"
+  # 音量 0~1。背景音乐不该压过阅读，0.35 约为舒适的环境音量
+  volume: 0.35
