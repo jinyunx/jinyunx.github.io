@@ -1,0 +1,19 @@
+{{/*
+    自定义 robots.txt
+
+    门禁（params.gate.enable）开启时禁止全部抓取：
+    否则门禁挡住了访客，但文章标题和摘要仍会出现在搜索结果里，
+    等于白挡 —— 内容会经搜索引擎缓存泄露。
+
+    注意 robots.txt 只是「君子协定」，守规矩的爬虫会遵守，
+    恶意爬虫不会。它与门禁一样属于劝退层，不是访问控制。
+*/}}
+{{- if .Site.Params.gate.enable -}}
+User-agent: *
+Disallow: /
+{{- else -}}
+User-agent: *
+Allow: /
+
+Sitemap: {{ "sitemap.xml" | absURL }}
+{{- end -}}

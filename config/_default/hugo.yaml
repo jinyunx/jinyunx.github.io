@@ -22,7 +22,8 @@ hasCJKLanguage: true
 # 主题目录名（themes/ 下的文件夹名，通过 git submodule 引入）
 theme: hugo-theme-stack
 
-# 生成 robots.txt，利于搜索引擎收录
+# 门禁开启后不希望被搜索引擎收录，故生成 robots.txt 并禁止抓取
+# （见 layouts/robots.txt；想公开时把这里连同 gate.enable 一起关掉）
 enableRobotsTXT: true
 
 # 首页每页文章数
