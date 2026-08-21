@@ -27,7 +27,12 @@ const crypto = webcrypto;
 
 const SRC_DIR = 'content';
 const OUT_DIR = 'content-encrypted';
+const DATA_DIR = 'data';
 const ITERATIONS = 600000;
+// 全站门禁的哨兵明文：门禁用密码尝试解密哨兵密文，
+// 能解开即密码正确。这样门禁是真校验而非明文比对，
+// 且页面上不出现密码本身
+const SENTINEL_TEXT = 'blog-gate-ok';
 
 const password = process.env.BLOG_PASSWORD;
 if (!password) {
@@ -149,4 +154,15 @@ for (const src of walk(SRC_DIR)) {
 }
 
 console.log(`\n完成：加密 ${encrypted} 篇，明文 ${plain} 篇，资源 ${assets} 个`);
+
+// 生成全站门禁用的哨兵密文，供模板读取（data/gate.json）。
+// 门禁拿用户输入的密码去解密它，能解开就放行 —— 真校验，
+// 且不需要在页面上放密码或密码哈希之外的任何线索。
+mkdirSync(DATA_DIR, { recursive: true });
+const sentinel = await encrypt(SENTINEL_TEXT);
+writeFileSync(
+    join(DATA_DIR, 'gate.json'),
+    JSON.stringify({ ...sentinel, probe: SENTINEL_TEXT }, null, 2) + '\n'
+);
+console.log(`门禁哨兵：${DATA_DIR}/gate.json`);
 console.log(`产物目录：${OUT_DIR}/（供 Hugo 构建，勿手改）`);

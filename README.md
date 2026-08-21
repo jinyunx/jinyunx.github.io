@@ -30,28 +30,41 @@ hugo new content post/my-first-trip/index.md
 排版、放照片、设封面的完整写法见站内文章《写作速查：这个博客怎么用》
 （文件在 `content/post/how-to-write/index.md`，用熟了可以删）。
 
-## 文章加密
+## 访问密码与文章加密
 
-给任何文章的 front matter 加一行就会被加密：
+**进站要输一次密码，之后本次会话浏览任何文章都不再询问。**
+
+- 门禁在 `layouts/_partials/head/custom.html`，全站生效
+- 校验方式是拿密码解密哨兵密文 `data/gate.json`（由加密脚本生成），
+  不是明文比对 —— 页面上不出现密码
+- 通过后密码存入 `sessionStorage`，加密文章读取它自动解密
+- 关掉标签页即失效，下次打开重新询问
+
+给任何文章的 front matter 加一行就会加密其正文：
 
 ```yaml
 encrypt: true
 ```
 
-不加这行的文章是公开的。
+不加这行的文章正文是公开的（但仍需过门禁才能浏览页面）。
 
 **加密强度**：正文 AES-256-GCM，密钥由密码经 PBKDF2-SHA256 迭代 60 万次派生。
 没有密码在数学上无法还原 —— `curl` 抓页面只能得到 base64 密文。
 
 **仍然公开的部分**：标题、日期、分类、标签（首页需要列出文章）。只有正文加密。
+门禁能挡住普通访客看到这些，但爬虫不执行 JS，所以 `robots.txt` 已设为
+`Disallow: /` 禁止收录。
 
-**密码存放**：项目根目录 `.env` 文件里的 `BLOG_PASSWORD`（已 gitignore，权限 600）。
+**密码存放**：项目根目录 `.env` 里的 `BLOG_PASSWORD`（已 gitignore，权限 600）。
 建议同时存进 macOS 钥匙串或密码管理器兜底。页面上只放**提示**不放密码
 （配置在 `params.yaml` 的 `encrypt.hint`）—— 站点公开可访问，
 写明文密码等于加密失效。
 
-**改密码**：改 `.env` 后重新 `./scripts/publish.sh "chore: 换密码"` 即可，
-历史文章会用新密码重新加密。
+**改密码**：改 `.env` 后重新 `./scripts/publish.sh "chore: 换密码"`，
+所有加密文章与门禁哨兵会用新密码重新生成。
+
+**自己被挡在外面时**：浏览器控制台执行
+`sessionStorage.setItem('blogPassword','你的密码')` 后刷新。
 
 ## 目录结构
 

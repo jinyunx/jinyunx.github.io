@@ -1,74 +1,75 @@
 {{/*
-    访客门禁（覆盖主题的 _partials/head/custom.html 预留扩展点）
+    全站门禁（覆盖主题 _partials/head/custom.html）
 
-    ⚠️ 安全边界（务必理解，别把它当加密用）：
-      静态站没有后端可校验身份，这段 JS 跑在访客浏览器里。
-      页面正文在 HTML 源码中是明文的 —— curl / 查看源代码 / 禁用 JS
-      都能绕过弹窗拿到内容，仓库若为 public 则源文件本身也是公开的。
-      定位：挡住随手点进来的人和搜索引擎收录，不具备真正的保密能力。
-      真需要保密请用 Cloudflare Access 或私有仓库 + 平台级密码保护。
+    行为：打开任意页面先要求输入密码，通过后本次会话内浏览
+          任何文章都不再询问（含加密文章的正文解密）。
 
-    实现要点：
-      1. 名字不明文入库，只存 SHA-256(名字:盐) 的哈希，
-         避免直接查看源码就读到答案（仍可被暴力枚举，见上方安全边界）
-      2. 放在 head 末尾且同步执行，在 <body> 渲染前就挂上遮罩，
-         防止正文闪现（FOUC）
-      3. 通过后写 localStorage，同一浏览器不再重复询问
-      4. 输入统一转小写并去空格，避免大小写造成的困扰
+    与早先那版「输名字」门禁的本质区别：
+      这里不做明文比对，而是拿输入的密码去解密一段哨兵密文
+      （data/gate.json，由 scripts/encrypt-content.mjs 生成）。
+      密码错误时 AES-GCM 完整性校验失败 —— 校验逻辑本身不泄露密码。
+
+    与文章解密的关系：
+      门禁通过后把密码存入 sessionStorage，文章模板读取它自动解密。
+      所以「输一次，全站通行」。
+      即便有人绕过门禁 UI（禁用 JS / 查看源码），加密文章的正文
+      仍是密文 —— 真正的保密由内容加密承担，门禁只负责统一入口体验。
 */}}
 
-{{- with .Site.Params.gate -}}
-{{- if .enable -}}
+{{/* 哨兵密文由 scripts/encrypt-content.mjs 写入 data/gate.json。
+     用 hugo.Data 而非已废弃的 .Site.Data（Hugo 0.156 起弃用） */}}
+{{- $gate := hugo.Data.gate -}}
+{{- if and .Site.Params.encrypt.gate $gate $gate.data -}}
 <style>
-    /* 门禁未通过前隐藏正文。用 :root 上的 class 控制，
-       JS 会在 body 存在前就加好，因此不会出现正文闪现 */
-    html.gate-locked body {
+    /* 门禁未通过前隐藏正文。class 加在 <html> 上，
+       JS 在 body 存在前即执行，因此不会出现内容闪现 */
+    html.site-locked body {
         visibility: hidden;
     }
 
-    #gate-overlay {
+    #site-gate {
         position: fixed;
         inset: 0;
         z-index: 9999;
         display: flex;
         align-items: center;
         justify-content: center;
-        /* 不依赖主题 CSS 变量：遮罩需要在主题样式加载完成前就能正确显示 */
+        /* 不依赖主题 CSS 变量：遮罩要在主题样式加载完成前就正确显示 */
         background: #14171a;
         color: #e8eaed;
         font-family: -apple-system, BlinkMacSystemFont, "PingFang SC",
                      "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
     }
 
-    .gate-box {
-        width: min(88vw, 22rem);
-        text-align: center;
+    .sg-box {
+        width: min(88vw, 21rem);
         padding: 2rem 1.5rem;
+        text-align: center;
     }
 
-    .gate-title {
-        font-size: 1.35rem;
-        font-weight: 600;
+    .sg-title {
         margin: 0 0 .4rem;
+        font-size: 1.4rem;
+        font-weight: 600;
         letter-spacing: .04em;
     }
 
-    .gate-hint {
-        font-size: .9rem;
-        opacity: .55;
-        margin: 0 0 1.5rem;
+    .sg-hint {
+        margin: 0 0 1.6rem;
+        font-size: .88rem;
+        opacity: .5;
     }
 
-    .gate-form {
+    .sg-form {
         display: flex;
         flex-direction: column;
-        gap: .75rem;
+        gap: .7rem;
     }
 
-    .gate-input {
-        width: 100%;
+    .sg-input {
         box-sizing: border-box;
-        padding: .7rem .9rem;
+        width: 100%;
+        padding: .72rem .9rem;
         font-size: 1rem;
         text-align: center;
         color: #e8eaed;
@@ -79,16 +80,16 @@
         transition: border-color .2s ease;
     }
 
-    .gate-input:focus {
+    .sg-input:focus {
         border-color: rgba(255, 255, 255, .45);
     }
 
-    .gate-input::placeholder {
-        color: rgba(232, 234, 237, .35);
+    .sg-input::placeholder {
+        color: rgba(232, 234, 237, .32);
     }
 
-    .gate-btn {
-        padding: .7rem 1rem;
+    .sg-btn {
+        padding: .72rem 1rem;
         font-size: .95rem;
         color: #14171a;
         background: #e8eaed;
@@ -98,130 +99,182 @@
         transition: opacity .2s ease;
     }
 
-    .gate-btn:hover {
+    .sg-btn:hover:not(:disabled) {
         opacity: .85;
     }
 
-    .gate-error {
+    .sg-btn:disabled {
+        opacity: .55;
+        cursor: default;
+    }
+
+    .sg-msg {
         min-height: 1.2rem;
-        margin: .75rem 0 0;
-        font-size: .85rem;
-        color: #ff8a80;
+        margin: .8rem 0 0;
+        font-size: .84rem;
         opacity: 0;
         transition: opacity .2s ease;
     }
 
-    .gate-error.show {
-        opacity: 1;
+    .sg-msg.show { opacity: 1; }
+    .sg-msg.error { color: #ff8a80; }
+
+    .sg-tip {
+        margin-top: 1.4rem;
+        font-size: .78rem;
+        opacity: .4;
     }
 
-    /* 答错时轻微抖动 */
-    .gate-box.shake {
-        animation: gate-shake .35s ease;
+    .sg-tip summary {
+        cursor: pointer;
+        outline: none;
     }
 
-    @keyframes gate-shake {
+    .sg-tip p {
+        margin: .6rem 0 0;
+        line-height: 1.65;
+    }
+
+    .sg-box.shake { animation: sg-shake .35s ease; }
+
+    @keyframes sg-shake {
         0%, 100% { transform: translateX(0); }
         25%      { transform: translateX(-7px); }
         75%      { transform: translateX(7px); }
     }
 
     @media (prefers-reduced-motion: reduce) {
-        .gate-box.shake { animation: none; }
+        .sg-box.shake { animation: none; }
     }
 </style>
 
 <script>
-    // 同步执行：在 body 渲染前加锁，避免正文闪现
+    // 同步执行：在 body 渲染前加锁，避免内容闪现
     (function () {
-        var KEY = 'gatePassed';
-        // SHA-256(名字:盐) 的十六进制值。名字不明文入库，
-        // 避免查看源码直接读到答案
-        var ALLOWED = {{ .hashes | jsonify | safeJS }};
-        var SALT = {{ .salt | jsonify | safeJS }};
+        // 与文章解密共用同一个 key —— 门禁通过后文章自动解密，
+        // 这是「输一次全站通行」的实现关键
+        var PW_KEY = 'blogPassword';
+        var SENTINEL = {{ $gate | jsonify | safeJS }};
 
-        // 已通过则完全不介入
-        try {
-            if (localStorage.getItem(KEY) === '1') return;
-        } catch (e) {
-            // 隐私模式下 localStorage 可能抛异常，降级为每次询问
+        function b64(s) {
+            var bin = atob(s), u8 = new Uint8Array(bin.length);
+            for (var i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+            return u8;
         }
 
-        document.documentElement.classList.add('gate-locked');
-
-        // SubtleCrypto 需要安全上下文（https 或 localhost）
-        function sha256(text) {
-            var buf = new TextEncoder().encode(text);
-            return crypto.subtle.digest('SHA-256', buf).then(function (hash) {
-                return Array.prototype.map.call(new Uint8Array(hash), function (b) {
-                    return b.toString(16).padStart(2, '0');
-                }).join('');
-            });
+        // 用密码解密哨兵密文，成功即密码正确
+        async function verify(password) {
+            var baseKey = await crypto.subtle.importKey(
+                'raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveKey']
+            );
+            var key = await crypto.subtle.deriveKey(
+                { name: 'PBKDF2', salt: b64(SENTINEL.salt),
+                  iterations: SENTINEL.iterations, hash: 'SHA-256' },
+                baseKey, { name: 'AES-GCM', length: 256 }, false, ['decrypt']
+            );
+            var plain = await crypto.subtle.decrypt(
+                { name: 'AES-GCM', iv: b64(SENTINEL.iv) }, key, b64(SENTINEL.data)
+            );
+            return new TextDecoder().decode(plain) === SENTINEL.probe;
         }
 
         function unlock() {
-            try { localStorage.setItem(KEY, '1'); } catch (e) {}
-            document.documentElement.classList.remove('gate-locked');
-            var el = document.getElementById('gate-overlay');
+            document.documentElement.classList.remove('site-locked');
+            var el = document.getElementById('site-gate');
             if (el) el.remove();
         }
 
+        // 本次会话已通过则完全不介入
+        var saved = null;
+        try { saved = sessionStorage.getItem(PW_KEY); } catch (e) {}
+        if (saved) {
+            // 已存密码仍要校验一次：密码可能已更换，
+            // 此时应重新询问而不是放进来看到一堆解不开的文章
+            verify(saved).then(function (ok) {
+                if (!ok) {
+                    try { sessionStorage.removeItem(PW_KEY); } catch (e) {}
+                    lockAndAsk();
+                }
+            }).catch(function () { /* crypto 不可用，见下方兜底 */ });
+            return;
+        }
+
+        lockAndAsk();
+
+        function lockAndAsk() {
+            document.documentElement.classList.add('site-locked');
+            if (document.body) render();
+            else document.addEventListener('DOMContentLoaded', render, { once: true });
+        }
+
         function render() {
+            if (document.getElementById('site-gate')) return;
             var overlay = document.createElement('div');
-            overlay.id = 'gate-overlay';
+            overlay.id = 'site-gate';
             overlay.innerHTML =
-                '<div class="gate-box" id="gate-box">' +
-                    '<p class="gate-title">{{ default "你是谁？" .title }}</p>' +
-                    '<p class="gate-hint">{{ default "报上名字，门才会开" .hint }}</p>' +
-                    '<form class="gate-form" id="gate-form">' +
-                        '<input class="gate-input" id="gate-input" type="text" ' +
-                               'placeholder="输入名字" autocomplete="off" ' +
-                               'autocapitalize="off" spellcheck="false" ' +
-                               'aria-label="访客名字">' +
-                        '<button class="gate-btn" type="submit">进入</button>' +
+                '<div class="sg-box" id="sg-box">' +
+                    '<p class="sg-title">{{ default "魔鬼小黑屋" .Site.Params.encrypt.gateTitle }}</p>' +
+                    '<p class="sg-hint">{{ default "输入密码进入" .Site.Params.encrypt.gateHint }}</p>' +
+                    '<form class="sg-form" id="sg-form">' +
+                        '<input class="sg-input" id="sg-input" type="password" ' +
+                               'placeholder="密码" autocomplete="current-password" ' +
+                               'aria-label="访问密码">' +
+                        '<button class="sg-btn" type="submit" id="sg-btn">进入</button>' +
                     '</form>' +
-                    '<p class="gate-error" id="gate-error">不认识你，再想想</p>' +
+                    '<p class="sg-msg" id="sg-msg"></p>' +
+                    {{ with .Site.Params.encrypt.hint }}
+                    '<details class="sg-tip"><summary>忘记密码了？</summary>' +
+                        '<p>{{ . }}</p></details>' +
+                    {{ end }}
                 '</div>';
             document.body.appendChild(overlay);
+            // 遮罩自身要可见（body 被 visibility:hidden 影响）
+            overlay.style.visibility = 'visible';
 
-            var form = document.getElementById('gate-form');
-            var input = document.getElementById('gate-input');
-            var err = document.getElementById('gate-error');
-            var box = document.getElementById('gate-box');
+            var form = document.getElementById('sg-form');
+            var input = document.getElementById('sg-input');
+            var btn = document.getElementById('sg-btn');
+            var msg = document.getElementById('sg-msg');
+            var box = document.getElementById('sg-box');
             input.focus();
+
+            function say(t, isErr) {
+                msg.textContent = t;
+                msg.classList.add('show');
+                msg.classList.toggle('error', !!isErr);
+            }
 
             form.addEventListener('submit', function (ev) {
                 ev.preventDefault();
-                // 统一小写并去首尾空格，避免大小写和误触空格导致答对却进不去
-                var name = input.value.trim().toLowerCase();
-                if (!name) return;
+                var pw = input.value;
+                if (!pw) return;
+                btn.disabled = true;
+                // PBKDF2 60 万次迭代需要约 50~300ms，给出反馈
+                say('验证中…', false);
 
-                sha256(name + ':' + SALT).then(function (digest) {
-                    if (ALLOWED.indexOf(digest) !== -1) {
+                verify(pw).then(function (ok) {
+                    if (ok) {
+                        try { sessionStorage.setItem(PW_KEY, pw); } catch (e) {}
                         unlock();
                     } else {
-                        err.classList.add('show');
+                        say('密码不对，再想想', true);
                         box.classList.remove('shake');
-                        // 重排一次以便动画可重复触发
-                        void box.offsetWidth;
+                        void box.offsetWidth; // 重排以便动画可重复触发
                         box.classList.add('shake');
                         input.select();
                     }
                 }).catch(function (e) {
-                    // crypto.subtle 在非安全上下文（http 直接访问 IP）不可用，
-                    // 此时放行而非把人永久锁在门外
-                    console.warn('[gate] 校验不可用，已放行：', e);
-                    unlock();
+                    // 密码错误时 AES-GCM 解密抛异常，与 ok=false 同处理
+                    say('密码不对，再想想', true);
+                    box.classList.remove('shake');
+                    void box.offsetWidth;
+                    box.classList.add('shake');
+                    input.select();
+                }).finally(function () {
+                    btn.disabled = false;
                 });
             });
         }
-
-        if (document.body) {
-            render();
-        } else {
-            document.addEventListener('DOMContentLoaded', render, { once: true });
-        }
     })();
 </script>
-{{- end -}}
 {{- end -}}

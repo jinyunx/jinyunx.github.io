@@ -29,5 +29,10 @@
 .vscode/
 *.swp
 
+# 浏览器自动化测试产物（playwright-cli 快照/截图/日志）
+/.playwright-cli/
+/gate-preview.png
+/gate*.yaml
+
 # 常见误提交：手机导出的原图临时目录
 /tmp/

@@ -105,19 +105,10 @@ comments:
     loading: "lazy"
 
 # ------------------------------------------------------------
-# 访客门禁（进站输名字，实现见 layouts/_partials/head/custom.html）
-#
-# 已关闭：内容改用真正的加密保护（见下方 encrypt 一节）后，
-# 这个门禁失去意义 —— 它只是遮罩，正文明文仍在 HTML 里，
-# curl / 禁用 JS 即可绕过。留着反而给人虚假的安全感。
-# 想额外加一层「劝退」时可改回 true。
-# ------------------------------------------------------------
-gate:
-  enable: false
-
-# ------------------------------------------------------------
-# 文章加密（实现见 scripts/encrypt-content.mjs 与
-# layouts/_partials/article/components/content.html）
+# 文章加密 + 全站门禁
+#   加密实现：scripts/encrypt-content.mjs
+#             layouts/_partials/article/components/content.html
+#   门禁实现：layouts/_partials/head/custom.html
 #
 # 加密方式：正文 AES-256-GCM，密钥由密码经 PBKDF2-SHA256
 #          60 万次迭代派生。没有密码在数学上无法还原。
@@ -127,13 +118,20 @@ gate:
 # 发布流程（务必按序，跳过第 1 步会发布出明文）：
 #   BLOG_PASSWORD='你的密码' node scripts/encrypt-content.mjs
 #   hugo --minify
+# 或直接用 ./scripts/publish.sh "提交说明"（已封装且带自检）
 #
 # ⚠️ hint 里绝对不要写明文密码：
-#   站点公开可访问，写了等于加密失效，且转 public 后密码会
-#   永久留在 git 历史中无法擦除。这里只放「知情人能还原、
-#   陌生人拼不出」的提示。
+#   站点公开可访问，写了等于加密失效，且密码会永久留在 git 历史中。
+#   这里只放「知情人能还原、陌生人拼不出」的提示。
 # ------------------------------------------------------------
 encrypt:
+  # 全站门禁：打开任意页面先要求输入密码，通过后本次会话内
+  # 浏览所有文章都不再询问（含加密文章正文自动解密）。
+  # 校验方式是拿密码解密哨兵密文（data/gate.json），不是明文比对。
+  gate: true
+  gateTitle: "魔鬼小黑屋"
+  gateHint: "输入密码进入"
+  # 密码提示，门禁与文章解锁框都会展示（点「忘记密码了？」展开）
   hint: "四个词，please 的缩写 + 心情 + 今天 + 年月，全小写用连字符连起来。"
 
 footer:
