@@ -42,8 +42,24 @@ jobs:
         id: pages
 
       - name: Build
-        # baseURL 由 Pages 实际地址覆盖，配置文件里的占位值不影响线上
+        # 直接构建仓库里的 content-encrypted/（密文），
+        # 加密在本地发布前完成，CI 不需要也不应持有密码。
+        # baseURL 由 Pages 实际地址覆盖，配置文件里的值不影响线上
         run: hugo --minify --baseURL "${{ steps.pages.outputs.base_url }}/"
+
+      - name: 防泄露自检
+        # 兜底防线：确认产物中没有未加密的 encrypt 标记文章。
+        # 若 content-encrypted/ 里出现 encrypt: true 却没有 encrypted_data
+        # 字段，说明本地漏跑了加密脚本，此时终止部署而非发布明文。
+        run: |
+          if grep -rl '^encrypt: true' content-encrypted/ --include='*.md' 2>/dev/null | while read -r f; do
+              grep -q 'encrypted_data:' "$f" || { echo "未加密：$f"; exit 1; }
+          done; then
+            echo "自检通过"
+          else
+            echo "::error::发现标记 encrypt 但未加密的文章，已终止部署。请在本地运行 scripts/publish.sh"
+            exit 1
+          fi
 
       - uses: actions/upload-pages-artifact@v3
         with:

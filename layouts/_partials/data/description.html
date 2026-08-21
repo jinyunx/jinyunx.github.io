@@ -1,0 +1,28 @@
+{{/*
+    页面 description（覆盖主题 _partials/data/description.html）
+
+    主题原版在页面没写 description 时回退到 .Summary（正文开头节选），
+    该值会输出到 <meta name="description"> 与 OpenGraph 标签，
+    加密文章若沿用原版会从 meta 标签泄露正文开头。
+
+    此处对加密文章禁用 .Summary 回退，改用站点副标题占位。
+    想给加密文章配一句对外可见的引子，就在 front matter 里
+    显式写 description（那是你主动选择公开的内容）。
+*/}}
+<!-- Use site subtitle by default -->
+{{ $description := .Site.Params.sidebar.subtitle }}
+
+<!-- Seprate description exists -->
+{{ if .Site.Params.description }}
+    {{ $description = .Site.Params.description }}
+{{ end }}
+
+{{ if .Description }}
+    <!-- Page description exists -->
+    {{ $description = .Description }}
+{{ else if and .IsPage (not (isset .Params "encrypted_data")) }}
+    <!-- Use page summary（仅未加密文章，防止正文经 meta 标签泄露） -->
+    {{ $description = .Summary }}
+{{ end }}
+
+{{ return (replaceRE "\n" " " $description | plainify) }}

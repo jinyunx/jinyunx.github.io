@@ -22,6 +22,13 @@ hasCJKLanguage: true
 # 主题目录名（themes/ 下的文件夹名，通过 git submodule 引入）
 theme: hugo-theme-stack
 
+# 内容目录指向加密产物，而非明文的 content/
+# 明文只存在于本地 content/（已 gitignore），构建前由
+# scripts/encrypt-content.mjs 生成 content-encrypted/。
+# 这样 Hugo 从头到尾接触不到加密文章的明文，产物自然不含明文。
+# 本地预览明文：hugo server --contentDir content
+contentDir: content-encrypted
+
 # 门禁开启后不希望被搜索引擎收录，故生成 robots.txt 并禁止抓取
 # （见 layouts/robots.txt；想公开时把这里连同 gate.enable 一起关掉）
 enableRobotsTXT: true

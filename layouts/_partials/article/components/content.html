@@ -1,0 +1,303 @@
+{{/*
+    文章正文渲染（覆盖主题 _partials/article/components/content.html）
+
+    加密文章（front matter 有 encrypted_data）走解密流程，
+    普通文章按原逻辑渲染。
+
+    安全模型：
+      正文以 AES-256-GCM 密文形式存在 HTML 里，密钥由密码经
+      PBKDF2-SHA256(60 万次迭代) 派生。没有密码在数学上无法还原
+      —— 与之前的 JS 门禁有本质区别（那个只是遮罩，正文是明文）。
+
+    仍然明文的部分（无法避免，因为首页要列文章）：
+      标题、日期、分类、标签。只有正文被加密。
+*/}}
+
+{{- if .Params.encrypted_data -}}
+<section class="article-content">
+    <div class="encrypted-wrap" id="enc-wrap"
+         data-salt="{{ .Params.encrypted_salt }}"
+         data-iv="{{ .Params.encrypted_iv }}"
+         data-payload="{{ .Params.encrypted_data }}"
+         data-iterations="{{ .Params.encrypted_iterations }}">
+
+        <div class="enc-gate" id="enc-gate">
+            <p class="enc-gate__title">这篇是锁着的</p>
+            <p class="enc-gate__hint">输入密码解锁正文</p>
+            <form class="enc-gate__form" id="enc-form">
+                <input class="enc-gate__input" id="enc-input" type="password"
+                       placeholder="密码" autocomplete="current-password"
+                       aria-label="解锁密码">
+                <button class="enc-gate__btn" type="submit" id="enc-submit">解锁</button>
+            </form>
+            <p class="enc-gate__msg" id="enc-msg"></p>
+            {{/*
+                密码提示（不是密码本身）。
+                站点公开可访问，写明文密码等于让加密失效，
+                故此处只放「只有知情人能还原」的提示。
+                提示文案配置在 params.yaml 的 encrypt.hint
+            */}}
+            {{- with .Site.Params.encrypt.hint -}}
+            <details class="enc-gate__tip">
+                <summary>忘记密码了？</summary>
+                <p>{{ . }}</p>
+            </details>
+            {{- end -}}
+        </div>
+
+        <div class="enc-content" id="enc-content" hidden></div>
+    </div>
+</section>
+
+<style>
+    .enc-gate {
+        max-width: 22rem;
+        margin: 2rem auto;
+        padding: 2rem 1.5rem;
+        text-align: center;
+        border: 1px solid var(--card-separator-color, rgba(255,255,255,.12));
+        border-radius: var(--card-border-radius, .5rem);
+        background: var(--card-background, rgba(255,255,255,.03));
+    }
+
+    .enc-gate__title {
+        margin: 0 0 .35rem;
+        font-size: 1.1rem;
+        font-weight: 600;
+    }
+
+    .enc-gate__hint {
+        margin: 0 0 1.25rem;
+        font-size: .85rem;
+        opacity: .55;
+    }
+
+    .enc-gate__form {
+        display: flex;
+        flex-direction: column;
+        gap: .6rem;
+    }
+
+    .enc-gate__input {
+        box-sizing: border-box;
+        width: 100%;
+        padding: .65rem .85rem;
+        font-size: 1rem;
+        text-align: center;
+        color: inherit;
+        background: rgba(128, 128, 128, .12);
+        border: 1px solid var(--card-separator-color, rgba(255,255,255,.14));
+        border-radius: .45rem;
+        outline: none;
+    }
+
+    .enc-gate__input:focus {
+        border-color: var(--accent-color, #b0b0b0);
+    }
+
+    .enc-gate__btn {
+        padding: .65rem 1rem;
+        font-size: .95rem;
+        cursor: pointer;
+        color: var(--accent-color-text, #fff);
+        background: var(--accent-color, #52525b);
+        border: none;
+        border-radius: .45rem;
+    }
+
+    .enc-gate__btn:disabled {
+        opacity: .6;
+        cursor: default;
+    }
+
+    .enc-gate__msg {
+        min-height: 1.2rem;
+        margin: .7rem 0 0;
+        font-size: .82rem;
+        opacity: 0;
+        transition: opacity .2s ease;
+    }
+
+    .enc-gate__msg.show {
+        opacity: 1;
+    }
+
+    .enc-gate__msg.error {
+        color: #ff8a80;
+    }
+
+    .enc-gate__tip {
+        margin-top: 1.1rem;
+        font-size: .8rem;
+        opacity: .5;
+    }
+
+    .enc-gate__tip summary {
+        cursor: pointer;
+        outline: none;
+    }
+
+    .enc-gate__tip p {
+        margin: .6rem 0 0;
+        line-height: 1.6;
+    }
+</style>
+
+<script>
+    (function () {
+        var wrap = document.getElementById('enc-wrap');
+        var form = document.getElementById('enc-form');
+        var input = document.getElementById('enc-input');
+        var btn = document.getElementById('enc-submit');
+        var msg = document.getElementById('enc-msg');
+        var gate = document.getElementById('enc-gate');
+        var out = document.getElementById('enc-content');
+        if (!wrap || !form) return;
+
+        // 同一浏览器记住密码，避免每篇文章重复输入。
+        // 用 sessionStorage 而非 localStorage：关掉标签页即失效，
+        // 降低共用设备时被他人直接读到的风险
+        var PW_KEY = 'blogPassword';
+
+        function b64ToBytes(b64) {
+            var bin = atob(b64);
+            var u8 = new Uint8Array(bin.length);
+            for (var i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+            return u8;
+        }
+
+        function say(text, isError) {
+            msg.textContent = text;
+            msg.classList.add('show');
+            msg.classList.toggle('error', !!isError);
+        }
+
+        async function decrypt(password) {
+            var salt = b64ToBytes(wrap.dataset.salt);
+            var iv = b64ToBytes(wrap.dataset.iv);
+            var payload = b64ToBytes(wrap.dataset.payload);
+            var iterations = parseInt(wrap.dataset.iterations, 10);
+
+            var baseKey = await crypto.subtle.importKey(
+                'raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveKey']
+            );
+            var key = await crypto.subtle.deriveKey(
+                { name: 'PBKDF2', salt: salt, iterations: iterations, hash: 'SHA-256' },
+                baseKey,
+                { name: 'AES-GCM', length: 256 },
+                false,
+                ['decrypt']
+            );
+            // AES-GCM 自带完整性校验：密码错误时这里直接抛异常，
+            // 不需要额外的校验字段
+            var plain = await crypto.subtle.decrypt(
+                { name: 'AES-GCM', iv: iv }, key, payload
+            );
+            return new TextDecoder().decode(plain);
+        }
+
+        function renderMarkdown(md) {
+            // 轻量渲染：仅覆盖常用语法。
+            // 不引入完整 Markdown 库是刻意取舍 —— 避免为此多加载几十 KB，
+            // 且解密内容注入 DOM 时越简单越可控
+            var esc = function (s) {
+                return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            };
+            var blocks = [];
+            // 先抽出代码块，避免其内部内容被后续规则误伤
+            md = md.replace(/```([\s\S]*?)```/g, function (_, code) {
+                blocks.push('<pre><code>' + esc(code.replace(/^\w*\n/, '')) + '</code></pre>');
+                return '\u0000BLOCK' + (blocks.length - 1) + '\u0000';
+            });
+
+            var html = md.split(/\n{2,}/).map(function (para) {
+                var t = para.trim();
+                if (!t) return '';
+                if (/^\u0000BLOCK\d+\u0000$/.test(t)) return t;
+                if (/^#{1,6}\s/.test(t)) {
+                    var lv = t.match(/^#+/)[0].length;
+                    return '<h' + lv + '>' + inline(t.replace(/^#+\s*/, '')) + '</h' + lv + '>';
+                }
+                if (/^>\s/.test(t)) {
+                    return '<blockquote><p>' + inline(t.replace(/^>\s*/gm, '')) + '</p></blockquote>';
+                }
+                if (/^([-*+])\s/.test(t)) {
+                    return '<ul>' + t.split('\n').map(function (li) {
+                        return '<li>' + inline(li.replace(/^[-*+]\s*/, '')) + '</li>';
+                    }).join('') + '</ul>';
+                }
+                if (/^\d+\.\s/.test(t)) {
+                    return '<ol>' + t.split('\n').map(function (li) {
+                        return '<li>' + inline(li.replace(/^\d+\.\s*/, '')) + '</li>';
+                    }).join('') + '</ol>';
+                }
+                if (/^(---|\*\*\*)$/.test(t)) return '<hr>';
+                return '<p>' + inline(t).replace(/\n/g, '<br>') + '</p>';
+            }).join('\n');
+
+            function inline(s) {
+                return esc(s)
+                    .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" loading="lazy">')
+                    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>')
+                    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+                    .replace(/(^|[^*])\*([^*]+)\*/g, '$1<em>$2</em>')
+                    .replace(/~~([^~]+)~~/g, '<del>$1</del>')
+                    .replace(/`([^`]+)`/g, '<code>$1</code>');
+            }
+
+            return html.replace(/\u0000BLOCK(\d+)\u0000/g, function (_, i) {
+                return blocks[i];
+            });
+        }
+
+        function reveal(md) {
+            out.innerHTML = renderMarkdown(md);
+            out.hidden = false;
+            gate.remove();
+        }
+
+        async function tryUnlock(password, silent) {
+            try {
+                var md = await decrypt(password);
+                try { sessionStorage.setItem(PW_KEY, password); } catch (e) {}
+                reveal(md);
+                return true;
+            } catch (e) {
+                if (!silent) say('密码不对，再试试', true);
+                return false;
+            }
+        }
+
+        // 本次会话已输过密码则自动解锁
+        var saved = null;
+        try { saved = sessionStorage.getItem(PW_KEY); } catch (e) {}
+        if (saved) {
+            tryUnlock(saved, true).then(function (ok) {
+                if (!ok) {
+                    // 保存的密码解不开这篇（比如换过密码），清掉重新问
+                    try { sessionStorage.removeItem(PW_KEY); } catch (e) {}
+                }
+            });
+        }
+
+        form.addEventListener('submit', function (ev) {
+            ev.preventDefault();
+            var pw = input.value;
+            if (!pw) return;
+            btn.disabled = true;
+            // PBKDF2 60 万次迭代需要约 0.3~1 秒，给出反馈避免以为卡死
+            say('解锁中…', false);
+            tryUnlock(pw, false).finally(function () {
+                btn.disabled = false;
+                input.select();
+            });
+        });
+    })();
+</script>
+{{- else -}}
+{{/* 未加密文章：保持主题原有渲染逻辑 */}}
+<section class="article-content">
+    {{ $wrappedTable := printf "<div class=\"table-wrapper\">${1}</div>" }}
+    {{ .Content | replaceRE "(<table>(?:.|\n)+?</table>)" $wrappedTable | safeHTML }}
+</section>
+{{- end -}}

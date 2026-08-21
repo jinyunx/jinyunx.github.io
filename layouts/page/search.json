@@ -1,0 +1,28 @@
+{{/*
+    站内搜索索引（覆盖主题 layouts/page/search.json）
+
+    主题原版把 (.Plain) —— 即正文全文明文 —— 写进 JSON 索引。
+    加密文章若沿用原版，正文会从 /search/index.json 整篇泄露，
+    等于加密白做。
+
+    此处对加密文章只索引标题，正文字段留空。
+    代价：加密文章无法按正文内容搜索（只能搜到标题）。
+    这是保密与便利的必然取舍。
+*/}}
+{{- $pages := partial "helper/pages.html" .Site.Home -}}
+{{- $result := slice -}}
+
+{{- range $pages -}}
+    {{/* 加密文章的 content 置空，避免明文经搜索索引泄露 */}}
+    {{- $content := cond (isset .Params "encrypted_data") "" .Plain -}}
+    {{- $data := dict "title" .Title "date" .Date "permalink" .RelPermalink "content" $content -}}
+
+    {{- $image := partial "helper/image" (dict "Image" .Params.image "Resources" .Resources "Context" .) -}}
+    {{- if $image -}}
+        {{- $data = merge $data (dict "image" $image.Permalink) -}}
+    {{- end -}}
+
+    {{- $result = $result | append $data -}}
+{{- end -}}
+
+{{ jsonify $result }}

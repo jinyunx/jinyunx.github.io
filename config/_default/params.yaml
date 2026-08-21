@@ -8,8 +8,10 @@
 mainSections:
   - post
 
-# RSS 输出全文，订阅者不用点进来
-rssFullContent: true
+# RSS 是否输出全文
+# 加密方案下必须为 false：RSS 输出全文会绕过加密直接泄露正文，
+# 且 RSS 阅读器无法执行解密 JS。加密文章在 RSS 里只有标题
+rssFullContent: false
 
 # 站点图标，放到 assets/img/favicon.png 后取消注释
 # favicon: "img/favicon.png"
@@ -103,35 +105,36 @@ comments:
     loading: "lazy"
 
 # ------------------------------------------------------------
-# 访客门禁（进站需输入名字，实现见 layouts/_partials/head/custom.html）
+# 访客门禁（进站输名字，实现见 layouts/_partials/head/custom.html）
 #
-# ⚠️ 安全边界：这不是加密，只是「劝退」
-#   静态站没有后端，校验在访客浏览器里跑。查看源代码、禁用 JS、
-#   或直接 curl 页面都能拿到正文；仓库为 public 时源文件本身也公开。
-#   作用是挡住随手点进来的人 + 阻止搜索引擎收录，
-#   真需要保密请改用 Cloudflare Access 或私有仓库方案。
-#
-# 改名字的方法（名字不明文存放，存的是哈希）：
-#   1. 算出新名字的哈希（注意名字用小写）：
-#        printf '%s' "名字:盐值" | shasum -a 256
-#      其中「盐值」就是下面 salt 的值
-#   2. 把得到的哈希填进 hashes 列表
-#
-# 当前配置的两个名字：vicky、jinyun（输入时大小写不敏感）
+# 已关闭：内容改用真正的加密保护（见下方 encrypt 一节）后，
+# 这个门禁失去意义 —— 它只是遮罩，正文明文仍在 HTML 里，
+# curl / 禁用 JS 即可绕过。留着反而给人虚假的安全感。
+# 想额外加一层「劝退」时可改回 true。
 # ------------------------------------------------------------
 gate:
-  enable: true
-  # 弹窗标题与提示
-  title: "你是谁？"
-  hint: "报上名字，门才会开"
-  # 盐值：让哈希无法用通用彩虹表反查。改了盐必须重算所有哈希
-  salt: "xiaoheiwu"
-  # SHA-256(小写名字 + ":" + salt) 的十六进制值
-  hashes:
-    # vicky
-    - "c649099811cfbbf947d31472e7ab8d800733882cb3eb9ca451f7207aa1f1545e"
-    # jinyun
-    - "d2afb299a16eb56377d2c8500ab12e8b987c6937a977c924a1505fcc9f35b930"
+  enable: false
+
+# ------------------------------------------------------------
+# 文章加密（实现见 scripts/encrypt-content.mjs 与
+# layouts/_partials/article/components/content.html）
+#
+# 加密方式：正文 AES-256-GCM，密钥由密码经 PBKDF2-SHA256
+#          60 万次迭代派生。没有密码在数学上无法还原。
+#
+# 加密一篇文章：在其 front matter 加一行 encrypt: true
+#
+# 发布流程（务必按序，跳过第 1 步会发布出明文）：
+#   BLOG_PASSWORD='你的密码' node scripts/encrypt-content.mjs
+#   hugo --minify
+#
+# ⚠️ hint 里绝对不要写明文密码：
+#   站点公开可访问，写了等于加密失效，且转 public 后密码会
+#   永久留在 git 历史中无法擦除。这里只放「知情人能还原、
+#   陌生人拼不出」的提示。
+# ------------------------------------------------------------
+encrypt:
+  hint: "四个词，please 的缩写 + 心情 + 今天 + 年月，全小写用连字符连起来。"
 
 footer:
   # 页脚版权起始年份
