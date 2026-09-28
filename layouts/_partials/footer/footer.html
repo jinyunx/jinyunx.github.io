@@ -1,0 +1,14 @@
+{{/* 覆盖主题页脚：只保留版权行，去掉「使用 Hugo 构建 / 主题 Stack 由 Jimmy 设计」 */}}
+<footer class="site-footer">
+    <section class="copyright">
+        &copy;
+        {{ if and (.Site.Params.footer.since) (ne .Site.Params.footer.since (int (now.Format "2006"))) }}
+            {{ .Site.Params.footer.since }} -
+        {{ end }}
+        {{ now.Format "2006" }} {{ default .Site.Title .Site.Copyright }}
+    </section>
+
+    {{ with .Site.Params.footer.customText }}
+    <section class="powerby">{{ . | safeHTML }}</section>
+    {{ end }}
+</footer>
