@@ -1,0 +1,9 @@
+{{/* 覆盖主题：文章页底部去掉标签和「最后更新于」，仅保留转载声明 */}}
+<footer class="article-meta article-footer">
+    {{ if and (.Site.Params.article.license.enabled) (not (eq .Params.license false)) }}
+    <section class="article-copyright inline-meta">
+        {{ partial "helper/icon" "copyright" }}
+        <span>{{ default .Site.Params.article.license.default .Params.license | markdownify }}</span>
+    </section>
+    {{ end }}
+</footer>

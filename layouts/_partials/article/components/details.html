@@ -1,0 +1,23 @@
+{{/* 覆盖主题：文章卡片与文章页头部只保留标题 + 创建日期，
+     去掉分类、副标题、阅读时长、标签、多语言链接 */}}
+{{- $Page := .Page -}}
+<div class="article-details">
+    <div class="article-title-wrapper">
+        <h2 class="article-title">
+            <a href="{{ $Page.RelPermalink }}">
+                {{- $Page.Title -}}
+            </a>
+        </h2>
+    </div>
+
+    {{ if not $Page.Date.IsZero }}
+    <footer class="article-meta">
+        <div class="inline-meta">
+            {{ partial "helper/icon" "date" }}
+            <time class="article-time--published" datetime='{{ $Page.Date.Format "2006-01-02T15:04:05Z07:00" }}'>
+                {{- $Page.Date | time.Format $Page.Site.Params.dateFormat.published -}}
+            </time>
+        </div>
+    </footer>
+    {{ end }}
+</div>

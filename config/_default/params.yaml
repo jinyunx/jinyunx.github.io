@@ -29,13 +29,13 @@ article:
   headingAnchor: true
   # 生活记录篇幅短，正文目录默认关掉；某篇很长时在该篇 front matter 里写 toc: true 单独开
   toc: false
-  # 阅读时长（中文按 hasCJKLanguage 正确估算）
-  readingTime: true
+  # 阅读时长已关闭（极简：文章只显示标题 + 创建日期）
+  readingTime: false
   math: false
 
   list:
-    # 首页卡片上显示标签
-    showTags: true
+    # 首页卡片不显示标签
+    showTags: false
 
   license:
     # 生活记录多为个人内容，默认声明保留权利
