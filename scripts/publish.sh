@@ -18,11 +18,8 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-MSG="${1:-}"
-if [[ -z "$MSG" ]]; then
-    echo "用法：./scripts/publish.sh \"提交说明\""
-    exit 1
-fi
+MSG="${1:-post: 更新 $(date +%F)}"
+# 不带参数时用上面的默认提交说明；想写清楚改了什么就 ./scripts/publish.sh "post: 标题"
 
 # 读取密码
 if [[ -z "${BLOG_PASSWORD:-}" && -f .env ]]; then
