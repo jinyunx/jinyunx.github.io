@@ -29,6 +29,11 @@ const SRC_DIR = 'content';
 const OUT_DIR = 'content-encrypted';
 const DATA_DIR = 'data';
 const ITERATIONS = 600000;
+// 加密文章里的图片也加密：输出 <原名>.enc，二进制格式为
+//   [16 字节盐][12 字节 IV][AES-256-GCM 密文]
+// 明文图片不进入产物。浏览器端解密脚本（content.html）按同一格式解开。
+// 与正文密文共用同一套参数，迭代次数改动时两处必须同步。
+const IMAGE_EXTS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', '.avif', '.svg']);
 // 全站门禁的哨兵明文：门禁用密码尝试解密哨兵密文，
 // 能解开即密码正确。这样门禁是真校验而非明文比对，
 // 且页面上不出现密码本身
@@ -94,6 +99,45 @@ async function encrypt(plaintext) {
     };
 }
 
+/** 加密二进制文件，返回 Buffer：[盐 16][IV 12][密文]（与浏览器端约定一致） */
+async function encryptBinary(buf) {
+    const salt = crypto.getRandomValues(new Uint8Array(16));
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+
+    const baseKey = await crypto.subtle.importKey(
+        'raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveKey']
+    );
+    const key = await crypto.subtle.deriveKey(
+        { name: 'PBKDF2', salt, iterations: ITERATIONS, hash: 'SHA-256' },
+        baseKey,
+        { name: 'AES-GCM', length: 256 },
+        false,
+        ['encrypt']
+    );
+    const cipher = await crypto.subtle.encrypt(
+        { name: 'AES-GCM', iv }, key, new Uint8Array(buf)
+    );
+
+    return Buffer.concat([Buffer.from(salt), Buffer.from(iv), Buffer.from(new Uint8Array(cipher))]);
+}
+
+/** 把正文里指向本目录图片的引用改写为 .enc 路径（加密前调用）。
+ *  只处理本地相对路径且文件确实存在的图片，外链 / 绝对路径不动 */
+function rewriteImageRefs(body, dir) {
+    const toEnc = (url) => {
+        if (/^(https?:)?\/\//.test(url) || url.startsWith('/') || url.startsWith('data:')) return url;
+        const name = url.split('/').pop();
+        const p = join(dir, name);
+        if (!existsSync(p) || !IMAGE_EXTS.has(extname(name).toLowerCase())) return url;
+        return url + '.enc';
+    };
+    return body
+        .replace(/!\[([^\]]*)\]\(([^)\s]+)((?:\s+"[^"]*")?)\)/g,
+            (m, alt, url, title) => `![${alt}](${toEnc(url)}${title})`)
+        .replace(/<img([^>]*?\s)src="([^"]+)"/g,
+            (m, pre, url) => `<img${pre}src="${toEnc(url)}"`);
+}
+
 /** 递归收集所有文件 */
 function walk(dir, out = []) {
     for (const name of readdirSync(dir)) {
@@ -108,19 +152,48 @@ function walk(dir, out = []) {
 if (existsSync(OUT_DIR)) rmSync(OUT_DIR, { recursive: true });
 mkdirSync(OUT_DIR, { recursive: true });
 
-let encrypted = 0, plain = 0, assets = 0;
+// 第一遍：找出加密文章所在目录，并记下其封面图文件名。
+// 封面图会显示在公开的首页卡片上，即使加密也无法避免公开，
+// 因此封面保持明文（在 front matter 里用 image: 指定才有此例外）
+const encryptedDirs = new Map(); // dir -> cover 文件名（无则 null）
+for (const src of walk(SRC_DIR)) {
+    if (extname(src).toLowerCase() !== '.md') continue;
+    const raw = readFileSync(src, 'utf8');
+    const { fm } = splitFrontMatter(raw);
+    if (readField(fm, 'encrypt') === 'true') {
+        encryptedDirs.set(dirname(src), readField(fm, 'image'));
+    }
+}
+
+let encrypted = 0, plain = 0, assets = 0, images = 0;
 
 for (const src of walk(SRC_DIR)) {
     const rel = relative(SRC_DIR, src);
-    const dst = join(OUT_DIR, rel);
-    mkdirSync(dirname(dst), { recursive: true });
+    const dir = dirname(src);
+    const encInfo = encryptedDirs.get(dir);
 
-    // 非 Markdown（图片等）原样拷贝
+    // 非 Markdown 文件
     if (extname(src).toLowerCase() !== '.md') {
+        const name = src.split('/').pop();
+        // 加密文章目录里的图片（封面除外）：加密为 .enc，明文不进入产物
+        if (encInfo !== undefined && name !== encInfo && IMAGE_EXTS.has(extname(name).toLowerCase())) {
+            const dst = join(OUT_DIR, rel) + '.enc';
+            mkdirSync(dirname(dst), { recursive: true });
+            writeFileSync(dst, await encryptBinary(readFileSync(src)));
+            images++;
+            console.log(`  加密图片 ${rel}`);
+            continue;
+        }
+        // 其余资源（含封面图、普通文章的图片）原样拷贝
+        const dst = join(OUT_DIR, rel);
+        mkdirSync(dirname(dst), { recursive: true });
         copyFileSync(src, dst);
         assets++;
         continue;
     }
+
+    const dst = join(OUT_DIR, rel);
+    mkdirSync(dirname(dst), { recursive: true });
 
     const raw = readFileSync(src, 'utf8');
     const { fm, body } = splitFrontMatter(raw);
@@ -132,7 +205,7 @@ for (const src of walk(SRC_DIR)) {
         continue;
     }
 
-    const payload = await encrypt(body.trim());
+    const payload = await encrypt(rewriteImageRefs(body.trim(), dir));
 
     // 密文以 front matter 字段形式携带，正文置空。
     // 正文留空是关键：这样 .Content / .Summary / .Plain 全都取不到原文，
@@ -153,7 +226,7 @@ for (const src of walk(SRC_DIR)) {
     console.log(`  加密 ${rel}`);
 }
 
-console.log(`\n完成：加密 ${encrypted} 篇，明文 ${plain} 篇，资源 ${assets} 个`);
+console.log(`\n完成：加密 ${encrypted} 篇，明文 ${plain} 篇，加密图片 ${images} 个，明文资源 ${assets} 个`);
 
 // 生成全站门禁用的哨兵密文，供模板读取（data/gate.json）。
 // 门禁拿用户输入的密码去解密它，能解开就放行 —— 真校验，

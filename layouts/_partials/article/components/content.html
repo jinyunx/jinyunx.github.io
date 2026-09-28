@@ -249,17 +249,59 @@
             });
         }
 
-        function reveal(md) {
+        // 图片解密：加密文章里的图片以 .enc 密文发布（格式：[盐16][IV12][密文]，
+        // 与 scripts/encrypt-content.mjs 约定一致），正文解开后在这里逐张解开，
+        // 以 blob URL 替换。mime 从原扩展名推断。
+        var IMG_MIME = {
+            '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
+            '.gif': 'image/gif', '.webp': 'image/webp', '.avif': 'image/avif',
+            '.svg': 'image/svg+xml'
+        };
+
+        function imgMime(src) {
+            var ext = src.replace(/\.enc(\?.*)?$/i, '').match(/\.[a-z0-9]+$/i);
+            return ext && IMG_MIME[ext[0].toLowerCase()] || 'application/octet-stream';
+        }
+
+        async function decryptImages(password) {
+            var imgs = out.querySelectorAll('img[src$=".enc"]');
+            if (!imgs.length) return;
+            // importKey 便宜，只做一次；deriveKey 是 60 万次迭代的大头，
+            // 但每张图片盐不同，只能逐张派生
+            var baseKey = await crypto.subtle.importKey(
+                'raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveKey']
+            );
+            var iterations = parseInt(wrap.dataset.iterations, 10);
+            Array.prototype.forEach.call(imgs, async function (img) {
+                var encUrl = img.getAttribute('src');
+                try {
+                    var buf = new Uint8Array(await (await fetch(encUrl)).arrayBuffer());
+                    var key = await crypto.subtle.deriveKey(
+                        { name: 'PBKDF2', salt: buf.slice(0, 16), iterations: iterations, hash: 'SHA-256' },
+                        baseKey, { name: 'AES-GCM', length: 256 }, false, ['decrypt']
+                    );
+                    var plain = await crypto.subtle.decrypt(
+                        { name: 'AES-GCM', iv: buf.slice(16, 28) }, key, buf.slice(28)
+                    );
+                    img.src = URL.createObjectURL(new Blob([plain], { type: imgMime(encUrl) }));
+                } catch (e) {
+                    img.alt = '[图片解密失败]';
+                }
+            });
+        }
+
+        function reveal(md, password) {
             out.innerHTML = renderMarkdown(md);
             out.hidden = false;
             gate.remove();
+            decryptImages(password);
         }
 
         async function tryUnlock(password, silent) {
             try {
                 var md = await decrypt(password);
                 try { sessionStorage.setItem(PW_KEY, password); } catch (e) {}
-                reveal(md);
+                reveal(md, password);
                 return true;
             } catch (e) {
                 if (!silent) say('密码不对，再试试', true);
