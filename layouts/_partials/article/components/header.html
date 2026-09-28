@@ -1,0 +1,21 @@
+{{/*
+    文章头部（覆盖主题 _partials/article/components/header.html）
+
+    本站文章全部加密，封面图发布为 .enc 密文（front matter 的 image_enc 字段），
+    这里渲染成 <img data-enc-src>，由 footer/custom.html 里的全站脚本
+    用门禁密码在浏览器端解密显示。不走路由主题的明文封面逻辑。
+*/}}
+{{- $IsList := .IsList -}}
+{{- $Page := .Page -}}
+<header class="article-header">
+    {{ with $Page.Params.image_enc }}
+    <div class="article-image">
+        <a href="{{ $Page.RelPermalink }}">
+            <img data-enc-src="{{ relURL (printf "%s%s" $Page.RelPermalink .) }}"
+                 alt="{{ $Page.Title }}" loading="lazy">
+        </a>
+    </div>
+    {{ end }}
+
+    {{ partial "article/components/details" (dict "Page" $Page "IsList" $IsList) }}
+</header>

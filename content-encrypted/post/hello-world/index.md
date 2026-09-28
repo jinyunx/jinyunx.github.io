@@ -7,16 +7,8 @@ categories:
     - 日常
 tags:
     - 随笔
+encrypted_salt: "eU06SwwtyKuzwuLcjRbZTA=="
+encrypted_iv: "YSigaj+BEod66cYf"
+encrypted_data: "OtcvDZ0k60aGFcbDafL3ReWjwNq3gFPOqT9VFDyT5zKXFWBGdTw1n2Me/szbR4OJIhGgYRUA4snDOmqPwQtf3vJqSIfBJVtei2paRSKvRwqWlTHHCi392DUw4scaNlDArFzfVnUTH8XmV+nUXnaXicRhoYUe9bcKv2NWoGNdcXlb++oImO3gVfzTvVJnkdM2gicwWRZiQGZxw7b6Kk+rhEfs4BoXh9sED4JUVOFs7oNkjcW2qPY5J/sOOuDLf+WZCyKhRQNeXsG2O5yl5SRDVziruKMFPUR0IwcOVYiWF0sjMTblY4d18HDL/5W3dAARdbpRarMA354LBOyREXp9DQ7Elqgc4OwuShSE6OLXPwkg2EIZSWgFBgTAMbFng9KErKS+uPRmRZULoUyEpRXFL47abXrDd82WjdXyba0uJlBkdlgVEP0vwnLoxsnc2DZytn1H9NhjHHH2JeczJ4JiTO5yNOIjbs5qlqF/AvgqVqhcBb3+1Pqe9APsr5UbaJElGu+XdHQDHa+BheAOsIHoYZrkuWhlH70hs2rOxIjsAWJPtWaLHZ6koeisms/nbu7CSCaXjweMx7pxT8TQg9/14mMdoFmLgzgZoLWxL3S/vR7obtcFhVvq4qTBeFCC964KzTp47gOZ1NSuMA=="
+encrypted_iterations: 600000
 ---
-
-今天把这个地方搭起来了。
-
-之前那些想记下来的事，都散在手机备忘录、聊天记录和相册里。备忘录翻不到，
-聊天记录会被清，相册里三千张照片没有一句说明 —— 等于什么都没留下。
-
-所以有了这里。不为给谁看，就是攒着。等哪天回头翻，能想起当时是什么天气、
-吃了什么、和谁在一起。
-
-慢慢写。
-
-<!-- 这篇可以直接删掉：rm -r content/post/hello-world -->

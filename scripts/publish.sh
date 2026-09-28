@@ -52,7 +52,19 @@ while IFS= read -r f; do
         echo "     泄露片段：$probe"
         LEAK=1
     fi
-done < <(grep -rl '^encrypt: true' content/ --include='*.md' 2>/dev/null || true)
+# 全站文章强制加密，故对 content/post/ 下所有文章取指纹，
+# 不再只查带 encrypt: true 标记的
+done < <(find content/post -name '*.md' 2>/dev/null || true)
+
+# 图片泄露检查：产物中的文章目录不允许出现明文图片，
+# 正常情况应全部是 .enc 密文（encrypt-content.mjs 保证，
+# 这里兜底防止脚本被改坏）
+while IFS= read -r img; do
+    echo "  !! 明文图片泄露：$img"
+    LEAK=1
+done < <(find public/p -type f \( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' \
+         -o -iname '*.gif' -o -iname '*.webp' -o -iname '*.avif' -o -iname '*.svg' \) \
+         2>/dev/null || true)
 
 if [[ "$LEAK" == "1" ]]; then
     echo

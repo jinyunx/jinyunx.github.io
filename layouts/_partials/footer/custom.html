@@ -195,3 +195,62 @@
 {{- end -}}
 {{- end -}}
 {{- end -}}
+
+{{/*
+    封面图解密（全站）。
+    加密文章的封面发布为 .enc 密文（格式 [盐16][IV12][密文]，
+    与 scripts/encrypt-content.mjs 约定一致，迭代次数改动时两处同步），
+    模板渲染为 <img data-enc-src>，这里用门禁密码统一解密为 blob URL。
+    密码来自全站门禁写入的 sessionStorage；门禁未过则页面上根本
+    不会有内容显示（body 隐藏），这里不处理也无碍。
+*/}}
+<script>
+    (function () {
+        var ITERATIONS = 600000;
+        var MIME = {
+            '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
+            '.gif': 'image/gif', '.webp': 'image/webp', '.avif': 'image/avif',
+            '.svg': 'image/svg+xml'
+        };
+
+        function mimeOf(src) {
+            var ext = src.replace(/\.enc(\?.*)?$/i, '').match(/\.[a-z0-9]+$/i);
+            return ext && MIME[ext[0].toLowerCase()] || 'application/octet-stream';
+        }
+
+        async function run() {
+            var imgs = document.querySelectorAll('img[data-enc-src]');
+            if (!imgs.length) return;
+            var pw = null;
+            try { pw = sessionStorage.getItem('blogPassword'); } catch (e) {}
+            if (!pw) return;
+
+            var baseKey = await crypto.subtle.importKey(
+                'raw', new TextEncoder().encode(pw), 'PBKDF2', false, ['deriveKey']
+            );
+            Array.prototype.forEach.call(imgs, async function (img) {
+                var url = img.dataset.encSrc;
+                try {
+                    var buf = new Uint8Array(await (await fetch(url)).arrayBuffer());
+                    var key = await crypto.subtle.deriveKey(
+                        { name: 'PBKDF2', salt: buf.slice(0, 16), iterations: ITERATIONS, hash: 'SHA-256' },
+                        baseKey, { name: 'AES-GCM', length: 256 }, false, ['decrypt']
+                    );
+                    var plain = await crypto.subtle.decrypt(
+                        { name: 'AES-GCM', iv: buf.slice(16, 28) }, key, buf.slice(28)
+                    );
+                    img.src = URL.createObjectURL(new Blob([plain], { type: mimeOf(url) }));
+                    img.removeAttribute('data-enc-src');
+                } catch (e) {
+                    img.alt = '[封面解密失败]';
+                }
+            });
+        }
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', run, { once: true });
+        } else {
+            run();
+        }
+    })();
+</script>

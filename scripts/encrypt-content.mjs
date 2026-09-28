@@ -152,17 +152,22 @@ function walk(dir, out = []) {
 if (existsSync(OUT_DIR)) rmSync(OUT_DIR, { recursive: true });
 mkdirSync(OUT_DIR, { recursive: true });
 
-// 第一遍：找出加密文章所在目录，并记下其封面图文件名。
-// 封面图会显示在公开的首页卡片上，即使加密也无法避免公开，
-// 因此封面保持明文（在 front matter 里用 image: 指定才有此例外）
-const encryptedDirs = new Map(); // dir -> cover 文件名（无则 null）
+// 第一遍：确定哪些目录要加密。
+// 规则：content/post/ 下的文章一律强制加密（全站无普通文章）；
+// 其他分区（如 page/）显式写 encrypt: true 才加密。
+// 封面图（front matter 的 image:）同样加密，输出时改写成 image_enc 字段，
+// 由浏览器端解密显示 —— 产物中不存在任何明文图片。
+const encryptedDirs = new Map(); // dir -> true
 for (const src of walk(SRC_DIR)) {
     if (extname(src).toLowerCase() !== '.md') continue;
-    const raw = readFileSync(src, 'utf8');
-    const { fm } = splitFrontMatter(raw);
-    if (readField(fm, 'encrypt') === 'true') {
-        encryptedDirs.set(dirname(src), readField(fm, 'image'));
+    const rel = relative(SRC_DIR, src);
+    const dir = dirname(src);
+    if (rel.startsWith('post/')) {
+        encryptedDirs.set(dir, true);
+        continue;
     }
+    const { fm } = splitFrontMatter(readFileSync(src, 'utf8'));
+    if (readField(fm, 'encrypt') === 'true') encryptedDirs.set(dir, true);
 }
 
 let encrypted = 0, plain = 0, assets = 0, images = 0;
@@ -175,8 +180,8 @@ for (const src of walk(SRC_DIR)) {
     // 非 Markdown 文件
     if (extname(src).toLowerCase() !== '.md') {
         const name = src.split('/').pop();
-        // 加密文章目录里的图片（封面除外）：加密为 .enc，明文不进入产物
-        if (encInfo !== undefined && name !== encInfo && IMAGE_EXTS.has(extname(name).toLowerCase())) {
+        // 加密目录里的图片一律加密为 .enc（含封面图），明文不进入产物
+        if (encInfo && IMAGE_EXTS.has(extname(name).toLowerCase())) {
             const dst = join(OUT_DIR, rel) + '.enc';
             mkdirSync(dirname(dst), { recursive: true });
             writeFileSync(dst, await encryptBinary(readFileSync(src)));
@@ -184,7 +189,7 @@ for (const src of walk(SRC_DIR)) {
             console.log(`  加密图片 ${rel}`);
             continue;
         }
-        // 其余资源（含封面图、普通文章的图片）原样拷贝
+        // 其余资源原样拷贝（page/ 等未加密分区的图片、附件等）
         const dst = join(OUT_DIR, rel);
         mkdirSync(dirname(dst), { recursive: true });
         copyFileSync(src, dst);
@@ -198,26 +203,32 @@ for (const src of walk(SRC_DIR)) {
     const raw = readFileSync(src, 'utf8');
     const { fm, body } = splitFrontMatter(raw);
 
-    // 只加密显式标记 encrypt: true 的文章
-    if (readField(fm, 'encrypt') !== 'true') {
+    // 未加密分区（page/ 等）的 Markdown 原样拷贝
+    if (!encInfo) {
         copyFileSync(src, dst);
         plain++;
         continue;
     }
 
+    const cover = readField(fm, 'image');
     const payload = await encrypt(rewriteImageRefs(body.trim(), dir));
 
     // 密文以 front matter 字段形式携带，正文置空。
     // 正文留空是关键：这样 .Content / .Summary / .Plain 全都取不到原文，
     // 搜索索引、meta description、RSS 自然也拿不到明文。
-    const extra =
+    let extra =
         `encrypted_salt: "${payload.salt}"\n` +
         `encrypted_iv: "${payload.iv}"\n` +
         `encrypted_data: "${payload.data}"\n` +
         `encrypted_iterations: ${payload.iterations}\n`;
+    // 封面图已加密为 <原名>.enc：去掉公开的 image 字段，
+    // 换成 image_enc 由自定义模板（article/components/header.html）渲染，
+    // 浏览器端用密码解密显示
+    if (cover) extra = `image_enc: "${cover}.enc"\n` + extra;
 
     // 插到 front matter 结束分隔线之前
-    const lines = fm.trimEnd().split('\n');
+    const lines = (fm || '---\n---\n').trimEnd().split('\n')
+        .filter((l) => !/^image:\s*/.test(l));
     lines.pop(); // 去掉结尾的 ---
     const newFm = lines.join('\n') + '\n' + extra + '---\n';
 
