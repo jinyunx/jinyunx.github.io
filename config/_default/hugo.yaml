@@ -53,3 +53,9 @@ outputs:
   home:
     - HTML
     - RSS
+
+# 极简模式：不生成 分类/标签 的聚合页（/categories/、/tags/ 等），
+# 文章 front matter 里写了也不会产出对应页面和链接
+disableKinds:
+  - taxonomy
+  - term
