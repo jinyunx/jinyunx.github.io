@@ -43,20 +43,10 @@ article:
     default: "本文内容为个人生活记录，未经许可请勿转载"
 
 # 侧边栏 / 页面小组件
+# 极简模式：只要站名 + 文章列表，搜索/归档/分类/标签云全部关闭
 widgets:
-  homepage:
-    - type: search
-    - type: archives
-      params:
-        limit: 5
-    - type: categories
-      params:
-        limit: 10
-    - type: tag-cloud
-      params:
-        limit: 20
-  page:
-    - type: toc
+  homepage: []
+  page: []
 
 # 日期显示格式，用 Go 时间格式（参考时间 2026-01-02 15:04:05）
 dateFormat:
@@ -129,7 +119,7 @@ encrypt:
   # 浏览所有文章都不再询问（含加密文章正文自动解密）。
   # 校验方式是拿密码解密哨兵密文（data/gate.json），不是明文比对。
   gate: true
-  gateTitle: "魔鬼小黑屋"
+  gateTitle: "没有回响"
   gateHint: "输入密码进入"
   # 密码提示，门禁与文章解锁框都会展示（点「忘记密码了？」展开）
   hint: "四个词，please 的缩写 + 心情 + 今天 + 年月，全小写用连字符连起来。"
