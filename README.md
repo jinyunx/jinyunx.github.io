@@ -18,8 +18,8 @@
 # 否则预览的是密文版本，加密文章会显示为待解锁状态
 hugo server -D --contentDir content
 
-# 新建一篇
-hugo new content post/my-first-trip/index.md
+# 新建一篇（必须加 --contentDir content，否则会建到密文目录里）
+hugo new --contentDir content post/my-first-trip/index.md
 
 # 发布（自动完成：加密 → 构建 → 防泄露自检 → 提交 → 推送）
 ./scripts/publish.sh "post: 标题"
