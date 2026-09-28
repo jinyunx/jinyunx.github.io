@@ -38,9 +38,8 @@ article:
     showTags: false
 
   license:
-    # 生活记录多为个人内容，默认声明保留权利
-    enabled: true
-    default: "本文内容为个人生活记录，未经许可请勿转载"
+    # 已关闭：文章页底部不显示任何声明
+    enabled: false
 
 # 侧边栏 / 页面小组件
 # 极简模式：只要站名 + 文章列表，搜索/归档/分类/标签云全部关闭
