@@ -19,7 +19,7 @@ rssFullContent: false
 sidebar:
   # 没有头像图时显示的 emoji 占位
   emoji: "🌿"
-  subtitle: "记录生活里那些值得回头看的瞬间"
+  subtitle: "念念不忘，没有回响"
   # 头像：把图片放到 assets/img/avatar.png 后取消下面这行
   # 路径相对 assets/ 目录，Hugo 会自动做多尺寸压缩
   # avatar: "img/avatar.png"
